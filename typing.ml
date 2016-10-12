@@ -1,9 +1,9 @@
 (* type inference/reconstruction *)
 
-open Syntax
+open SyntaxPlusPos
 
 exception Unify of Type.t * Type.t
-exception Error of t * Type.t * Type.t
+exception Error of Syntax.t * (Lexing.position * Lexing.position) * (Type.t * Type.t)
 
 let extenv = ref M.empty
 
@@ -22,7 +22,8 @@ let rec deref_typ = function (* 型変数を中身でおきかえる関数 (caml2html: typing_
       t'
   | t -> t
 let rec deref_id_typ (x, t) = (x, deref_typ t)
-let rec deref_term = function
+let rec deref_term (term, poss) =
+  ((match term with
   | Not(e) -> Not(deref_term e)
   | Neg(e) -> Neg(deref_term e)
   | Add(e1, e2) -> Add(deref_term e1, deref_term e2)
@@ -47,7 +48,7 @@ let rec deref_term = function
   | Array(e1, e2) -> Array(deref_term e1, deref_term e2)
   | Get(e1, e2) -> Get(deref_term e1, deref_term e2)
   | Put(e1, e2, e3) -> Put(deref_term e1, deref_term e2, deref_term e3)
-  | e -> e
+  | e -> e), poss)
 
 let rec occur r1 = function (* occur check (caml2html: typing_occur) *)
   | Type.Fun(t2s, t2) -> List.exists (occur r1) t2s || occur r1 t2
@@ -80,7 +81,7 @@ let rec unify t1 t2 = (* 型が合うように、型変数への代入をする (caml2html: typing
       r2 := Some(t1)
   | _, _ -> raise (Unify(t1, t2))
 
-let rec g env e = (* 型推論ルーチン (caml2html: typing_g) *)
+let rec g env ((e, (start_pos, end_pos)) as orig_e) = (* 型推論ルーチン (caml2html: typing_g) *)
   try
     match e with
     | Unit -> Type.Unit
@@ -148,7 +149,7 @@ let rec g env e = (* 型推論ルーチン (caml2html: typing_g) *)
 	unify (Type.Array(t)) (g env e1);
 	unify Type.Int (g env e2);
 	Type.Unit
-  with Unify(t1, t2) -> raise (Error(deref_term e, deref_typ t1, deref_typ t2))
+  with Unify (t1, t2) -> raise (Error (Syntax.of_syntax_plus_pos (deref_term orig_e), (start_pos, end_pos), (deref_typ t1, deref_typ t2)))
 
 let f e =
   extenv := M.empty;
@@ -160,4 +161,5 @@ let f e =
   (try unify Type.Unit (g M.empty e)
   with Unify _ -> failwith "top level does not have type unit");
   extenv := M.map deref_typ !extenv;
-  deref_term e
+  Syntax.of_syntax_plus_pos (deref_term e)
+
