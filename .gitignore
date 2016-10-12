@@ -8,6 +8,7 @@
 ._d
 
 min-caml
+min-caml.top
 
 /libmincaml.S
 
@@ -20,6 +21,10 @@ min-caml
 /regAlloc.ml
 /simm.ml
 /virtual.ml
+
+/test/
+!/test/*.c
+!/test/*.ml
 
 /min-rt/globals.s
 /min-rt/min-rt.s
